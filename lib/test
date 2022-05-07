@@ -1,0 +1,206 @@
+import 'dart:io';
+
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:login_otp/viewdata.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  runApp(MaterialApp(
+    home: storagee(),
+    debugShowCheckedModeBanner: false,
+  ));
+}
+
+class storagee extends StatefulWidget {
+  const storagee({Key? key}) : super(key: key);
+
+  @override
+  State<storagee> createState() => _storageeState();
+}
+
+class _storageeState extends State<storagee> {
+  String imhg = "";
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Column(
+          children: [
+            InkWell(
+              onTap: () async {
+                final ImagePicker _picker = ImagePicker();
+                // Pick an image
+                final XFile? image =
+                    await _picker.pickImage(source: ImageSource.gallery);
+                setState(() {
+                  imhg = image!.path;
+                });
+              },
+              child: Container(
+                child: imhg != ""
+                    ? CircleAvatar(
+                        radius: 50,
+                        backgroundImage: FileImage(File(imhg)),
+                      )
+                    : CircleAvatar(
+                        backgroundImage: FileImage(File("")),
+                      ),
+              ),
+            ),
+            ElevatedButton(
+                onPressed: () async {
+                  final storageRef = FirebaseStorage.instance.ref();
+
+                  DateTime mm = DateTime.now();
+
+                  String ctime = "${mm.second}";
+
+                  String imagename = "Sahil${ctime}.jpg";
+
+                  final spaceRef = storageRef.child("CREATIVE/$imagename");
+
+                  await spaceRef.putFile(File(imhg));
+
+                  spaceRef.getDownloadURL().then((value) async {
+                    print(value);
+
+                    DatabaseReference ref =
+                        FirebaseDatabase.instance.ref("RealTime").push();
+                    String? id = ref.key;
+
+                    await ref
+                        .set({"name": "John2", "id": id, "imageurl": value});
+
+                    Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) {
+                      return viewdata();
+                    },));
+
+                  });
+                },
+                child: Text("Send Image"))
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+
+//second
+import 'package:firebase_database/firebase_database.dart';
+import 'package:flutter/material.dart';
+import 'package:login_otp/main.dart';
+
+class viewdata extends StatefulWidget {
+  const viewdata({Key? key}) : super(key: key);
+
+  @override
+  State<viewdata> createState() => _viewdataState();
+}
+
+class _viewdataState extends State<viewdata> {
+  List temp = [];
+
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+
+    getalldata();
+  }
+
+  Future<void> getalldata() async {
+    DatabaseReference ref = FirebaseDatabase.instance.ref("RealTime");
+
+    DatabaseEvent de = await ref.once();
+
+    print("${de.snapshot.value}");
+
+    Map map = de.snapshot.value as Map;
+
+    map.forEach((key, hh) {
+      setState(() {
+        temp.add(hh);
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+          child: GridView.builder(
+        itemCount: temp.length,
+        itemBuilder: (context, index) {
+          return Card(
+            elevation: 20,
+            child: Container(
+              height: 100,
+              color: Colors.yellow,
+              child: Column(
+                children: [
+                  Expanded(
+                      child: Container(
+                          height: 50,
+                          decoration: BoxDecoration(shape: BoxShape.circle),
+                          child: Image.network("${temp[index]['imageurl']}"))),
+                  Expanded(
+                      child: Row(
+                    children: [
+                      Text("${temp[index]['name']}"),
+                      PopupMenuButton(
+                        onSelected: (value) async {
+                          print("jidfshiesh");
+
+                         if(value==0)
+                           {
+                             DatabaseReference ref = FirebaseDatabase.instance
+                                 .ref("RealTime")
+                                 .child(temp[index]['id']);
+
+                             String? id = ref.key;
+
+                             await ref.set({
+                               "id": id,
+                               "name": "updatename",
+                               "imageurl":
+                               "https://play-lh.googleusercontent.com/k7fkKToy39BLJ_u2U06lSRQDbl2_gK-Cdfl4SKmHPkVvXV09z3zvejQ8c1kSEPwMrDI=s180-rw"
+                             });
+
+                             Navigator.pushReplacement(context, MaterialPageRoute(
+                               builder: (context) {
+                                 return viewdata();
+                               },
+                             ));
+                           }
+                        },
+                        itemBuilder: (context) {
+                          return [
+                            PopupMenuItem(
+                                onTap: () async {},
+                                value: 0,
+                                child: Text("Update")),
+                            PopupMenuItem(value: 1, child: Text("Delete"))
+                          ];
+                        },
+                      )
+                    ],
+                  ))
+                ],
+              ),
+            ),
+          );
+        },
+        gridDelegate:
+            SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2),
+      )),
+    );
+  }
+}
